@@ -1,7 +1,7 @@
 """Local test artifacts: /tmp/mqa/YYYY-MM-DD/NNN/."""
 from datetime import datetime
 from pathlib import Path
-import subprocess
+import shutil, subprocess
 from core import now
 
 ROOT = Path('/tmp/mqa')
@@ -34,10 +34,15 @@ def collect_logs(directory, initial=False):
     directory = Path(directory)
     commands = {
         'dmesg-start.log' if initial else 'dmesg.log': ['dmesg'],
-        'logs/services.log': ['journalctl', '-b', '-u', 'nura-tests.service',
-                              '-u', 'iio-sensor-proxy.service', '--no-pager', '-o', 'short-monotonic'],
+        'logs/services.log': ['journalctl', '-b', '-u', 'iio-sensor-proxy.service',
+                              '--no-pager', '-o', 'short-monotonic'],
     }
     result = {'captured': now(), 'files': {}}
+    launcher_log=Path('/run/nura-tests/launcher.log')
+    if launcher_log.exists():
+        try:shutil.copyfile(launcher_log,directory/'logs/app.log')
+        except OSError as error:result['files']['logs/app.log']={'error':str(error)}
+        else:result['files']['logs/app.log']={'copied':True}
     for name, command in commands.items():
         target = directory / name
         try:

@@ -2,6 +2,7 @@
 from pathlib import Path
 import argparse, array, codecs, json, math, os, platform, pty, re, select, shlex, signal, subprocess, time, wave
 from core import atomic_json
+from launcher import managed_options, arm_parent_death
 
 RUN=Path('/run/nura-tests')
 BACKLIGHT=Path('/sys/class/backlight/ae94000.dsi.0/brightness')
@@ -37,7 +38,7 @@ def read(path):
 def command(args, timeout=8, check=True, cancellable=False, full=False):
     log('$ '+shlex.join(args)+'\n')
     p=subprocess.Popen(args,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,
-                       env={**os.environ,'LC_ALL':'C'})
+                       env={**os.environ,'LC_ALL':'C'},**managed_options())
     start=time.monotonic()
     try:
         while True:
@@ -79,7 +80,7 @@ def stream(args,seconds=None,on_line=None,interactive=False):
     master,slave=pty.openpty()
     try:
         p=subprocess.Popen(args,stdin=subprocess.PIPE if interactive else subprocess.DEVNULL,
-                           stdout=slave,stderr=slave,env={**os.environ,'LC_ALL':'C'})
+                           stdout=slave,stderr=slave,env={**os.environ,'LC_ALL':'C'},**managed_options())
     except Exception:
         os.close(slave);os.close(master);raise
     os.close(slave);end=time.monotonic()+seconds if seconds is not None else float('inf');data='';pending=''
@@ -370,6 +371,7 @@ def perform(action):
 
 def main():
     global ARTIFACTS,ACTION_LOG,RUN
+    arm_parent_death()
     p=argparse.ArgumentParser();p.add_argument('action');p.add_argument('--out',required=True);p.add_argument('--artifacts',type=Path,required=True);p.add_argument('--runtime',type=Path,default=RUN);a=p.parse_args()
     RUN=a.runtime
     ARTIFACTS=a.artifacts;ACTION_LOG=numbered_file(ARTIFACTS/'logs',a.action,'.log')

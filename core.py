@@ -18,7 +18,7 @@ def atomic_json(path, data):
 
 class Session:
     def __init__(self, directory, steps, kernel, fresh=False):
-        self.directory=Path(directory); self.directory.mkdir(parents=True,exist_ok=True)
+        self.directory=Path(directory); self.directory.mkdir(mode=0o700,parents=True,exist_ok=True)
         self.path=self.directory/'current.json'; self.steps=steps
         catalog=hashlib.sha256(json.dumps(steps,sort_keys=True).encode()).hexdigest()
         self.data=None
@@ -36,14 +36,14 @@ class Session:
                 current={s['id']:s for s in steps}
                 self.data['answers']={k:a for k,a in previous['answers'].items() if k in current and
                                       a['criterion']==current[k]['criterion'] and a['title']==current[k]['title']}
-                self.data.update(catalog=catalog,test_count=len(steps),app_version='1.6',
+                self.data.update(catalog=catalog,test_count=len(steps),app_version='1.7',
                                  index=next((i for i,s in enumerate(steps) if s['id'] not in self.data['answers']),len(steps)))
             else:
                 atomic_json(self.directory/'reports'/(previous['id']+'.json'),previous)
         if self.data is None:
             self.data=dict(schema=1,id=str(uuid.uuid4()),created=now(),kernel=kernel,
                            catalog=catalog,index=0,answers={},history=[],completed=False,
-                           app_version='1.6',device='OnePlus 8 Pro',test_count=len(steps))
+                           app_version='1.7',device='OnePlus 8 Pro',test_count=len(steps))
         self.save()
 
     def save(self):

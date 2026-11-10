@@ -18,21 +18,38 @@ SAFE_TOP=64  # 192 physical pixels; leave the camera cutout clear.
 FONT=Path('/usr/share/fonts/droid')
 
 def restore_console():
-    try:
-        from external_display import recover
-        recover(RUN);actions.recover()
-    except Exception as error:print('Restoration needs attention:',error,flush=True)
+    from external_display import recover
+    ok=True
+    for restore in (lambda:recover(RUN),actions.recover):
+        try:restore()
+        except Exception as error:
+            print('Restoration needs attention:',error,flush=True);ok=False
     try:
         state=json.loads((RUN/'console.json').read_text())
-        fd=os.open('/dev/tty8',os.O_RDWR|os.O_NOCTTY)
+        fd=os.open('/dev/tty'+str(state.get('vt',8)),os.O_RDWR|os.O_NOCTTY)
         try:fcntl.ioctl(fd,0x4b3a,0);fcntl.ioctl(fd,0x5606,state['previous_vt'])
         finally:os.close(fd)
-    except (OSError,ValueError,KeyError):pass
+        (RUN/'console.json').unlink()
+    except FileNotFoundError as error:
+        if (RUN/'console.json').exists():
+            print('Console restoration:',error,flush=True);ok=False
+    except (OSError,ValueError,KeyError) as error:
+        print('Console restoration:',error,flush=True);ok=False
     for p in Path('/sys/class/leds').glob('white:flash-*/brightness'):
         try:p.write_text('0')
         except OSError:pass
     try:Path('/sys/class/graphics/fb0/blank').write_text('0')
     except OSError:pass
+    return ok
+
+def unused_vt():
+    fd=os.open('/dev/tty0',os.O_RDWR|os.O_NOCTTY)
+    try:
+        result=bytearray(4);fcntl.ioctl(fd,0x5600,result)  # VT_OPENQRY
+        number=struct.unpack('i',result)[0]
+        if number<1:raise RuntimeError('No unused virtual console is available')
+        return number
+    finally:os.close(fd)
 
 class Framebuffer:
     def __init__(self):
@@ -41,10 +58,10 @@ class Framebuffer:
         recover(RUN)
         self.external=None
         previous=int(Path('/sys/class/tty/tty0/active').read_text().strip()[3:])
-        if previous==8 and (RUN/'console.json').exists():previous=json.loads((RUN/'console.json').read_text())['previous_vt']
-        atomic_json(RUN/'console.json',{'previous_vt':previous})
-        self.tty=os.open('/dev/tty8',os.O_RDWR|os.O_NOCTTY)
-        fcntl.ioctl(self.tty,0x5606,8);fcntl.ioctl(self.tty,0x5607,8)
+        vt=unused_vt()
+        atomic_json(RUN/'console.json',{'previous_vt':previous,'vt':vt})
+        self.tty=os.open('/dev/tty'+str(vt),os.O_RDWR|os.O_NOCTTY)
+        fcntl.ioctl(self.tty,0x5606,vt);fcntl.ioctl(self.tty,0x5607,vt)
         fcntl.ioctl(self.tty,0x4b3a,1)
         self.fd=os.open('/dev/fb0',os.O_RDWR)
         v=bytearray(160);f=bytearray(80)
@@ -281,7 +298,8 @@ class App:
             self.touch_coverage=Image.new('RGBA',(480,1056),(0,0,0,0))
         try:
             actions.recover()
-            self.worker=subprocess.Popen([sys.executable,str(ROOT/'actions.py'),STEPS[self.session.data['index']]['action'],'--out',str(RUN/'result.json'),'--artifacts',str(self.output_directory),'--runtime',str(RUN)],start_new_session=True)
+            from launcher import managed_options,PARENT_ENV
+            self.worker=subprocess.Popen([sys.executable,str(ROOT/'actions.py'),STEPS[self.session.data['index']]['action'],'--out',str(RUN/'result.json'),'--artifacts',str(self.output_directory),'--runtime',str(RUN)],start_new_session=True,env={**os.environ,PARENT_ENV:str(os.getpid())},**managed_options())
         except Exception as error:self.result={'ok':False,'error':str(error)}
 
     def act(self,key,force=False):
@@ -466,6 +484,8 @@ class App:
     def run(self):
         from evdev import InputDevice,list_devices,ecodes
         fb=None;dev=None
+        def stop(*_):self.stop=True
+        for sig in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):signal.signal(sig,stop)
         try:
             fb=Framebuffer();self.framebuffer=fb
             for path in list_devices():
@@ -478,8 +498,6 @@ class App:
             if any(hi<=lo for lo,hi in self.touch_axes):raise RuntimeError('Invalid touch axis ranges')
             self.reset_touch_trace()
             dev.grab();slots={};slot=0;last_frame=0;dropped=False
-            def stop(*_):self.stop=True
-            signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
             while not self.stop:
                 self.poll_worker()
                 self.sync_external()
@@ -517,6 +535,7 @@ class App:
                 except subprocess.TimeoutExpired:
                     try:os.killpg(self.worker.pid,signal.SIGKILL)
                     except ProcessLookupError:pass
+                    self.worker.wait()
             if dev:
                 try:dev.ungrab()
                 except OSError:pass
@@ -530,8 +549,7 @@ class App:
             self.save_logs()
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--preview');p.add_argument('--step',type=int,default=-1);p.add_argument('--restore',action='store_true');a=p.parse_args()
-    if a.restore:restore_console();return
+    p=argparse.ArgumentParser();p.add_argument('--preview');p.add_argument('--step',type=int,default=-1);p.add_argument('--restore',action='store_true');p.add_argument('--managed',action='store_true',help=argparse.SUPPRESS);a=p.parse_args()
     if a.preview:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
@@ -539,6 +557,18 @@ def main():
             if a.step>=0:app.mode='test';app.session.data['index']=a.step
             app.renderer.render(app).save(a.preview)
         return
+    from launcher import main as launch,arm_parent_death,LOCK_ENV
+    if not a.managed:return launch(['--restore'] if a.restore else [])
+    if LOCK_ENV not in os.environ:p.error('Use nura-tests or python3 app.py to launch the app')
+    arm_parent_death()
+    if a.restore:
+        ok=restore_console()
+        # Refresh logs after the launcher has recorded any app traceback.
+        try:
+            directory=json.loads((STATE/'current.json').read_text()).get('output_directory')
+            if directory and Path(directory).is_dir():collect_logs(Path(directory))
+        except (OSError,ValueError):pass
+        return 0 if ok else 1
     App().run()
 
-if __name__=='__main__':main()
+if __name__=='__main__':sys.exit(main())

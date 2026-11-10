@@ -16,11 +16,19 @@ sh install.sh
 nura-tests
 ```
 
-The installer checks the device model, installs its APK dependencies, copies the app to `/opt/nura-tests`, and installs `nura-tests.service` plus the `nura-tests` launcher. It uses systemd and does not enable automatic startup at boot. The app takes over VT8 and grabs the internal touchscreen; closing it returns to the previous console.
+The installer checks the device model, installs dependencies through `apk`, copies the app to `/opt/nura-tests`, and installs the `nura-tests` foreground launcher. There is no app service or boot startup. The app selects an unused virtual console and grabs the internal touchscreen; closing it restores the previous console and returns to the shell.
+
+Keep the launching terminal or SSH session open. **Ctrl+C**, the **Close** button, or disconnecting SSH stops the app; the launcher waits for its workers and hardware cleanup before exiting. A second launch is rejected while the app or cleanup still holds the instance lock. To stop it from another shell, run:
+
+```sh
+nura-tests --stop
+```
+
+If the UI crashes, the launcher stops leftover test processes and restores recorded display, audio and device settings. If the launcher is killed too, any unfinished recovery is retried from its journal on the next launch; `nura-tests --restore` runs recovery without opening the UI. Both normal startup and recovery take the same instance lock.
 
 The target system needs working framebuffer/DRM, evdev and hardware drivers. Use a console session with any graphical compositor stopped: external-display tests need exclusive DRM master access. The installer adds Python, Pillow, evdev, Droid fonts, libssc, libdrm, NetworkManager CLI and BlueZ. Individual checks also use tools and services supplied by the port: `monitor-sensor` with `iio-sensor-proxy`, ALSA's `amixer`/`aplay`/`arecord`, libcamera's `cam`, and `neard` for NFC. A missing interface or tool is reported by the affected check.
 
-To update from the cloned directory:
+Close a running foreground instance before updating, or use `nura-tests --stop` from another shell. Then, from the cloned directory:
 
 ```sh
 git pull --ff-only
@@ -28,11 +36,11 @@ sh install.sh
 nura-tests
 ```
 
-Reinstalling stops a running app and preserves its saved state and reports. To stop it from SSH, run `systemctl stop nura-tests.service`.
+The installer preserves saved state and reports, and refuses to replace files while a foreground instance is running. When upgrading an older service-based installation, it stops, disables and removes `nura-tests.service` automatically.
 
 ## Using the suite
 
-Tap **Start** or **Resume** to walk through the checks. **IMU**, **Compass** and **Display** jump directly to those pages; earlier unanswered checks remain pending. After all checks have an answer, the app shows a summary. **New run** starts another run; reopening a completed run shows its existing summary.
+Tap **Start** or **Resume** to walk through the checks. **IMU**, **Compass** and **Display** jump directly to those pages; earlier unanswered checks remain pending. After all checks have an answer, the app shows a summary. **New run** starts another run; reopening a completed run shows its existing summary. Starting on a different kernel archives an unfinished run and starts a fresh one.
 
 | Control | Effect |
 |---|---|
@@ -87,7 +95,7 @@ The card is regenerated from vector primitives at each output size: 75% RGB bars
 
 A kernel-rejected mode change leaves the previous mode active and shows the error. A kernel-accepted change still needs visual verification: the app's mode label is not proof that the monitor locked to that timing. Use the monitor's input-information menu where available. The pattern stays until another mode is applied or you leave the external-display checks; there is no timed reversion.
 
-The pattern also runs during plug-orientation, USB-touchscreen, monitor-audio and phone-powered-monitor checks. If you unplug the display, the app waits for it to reconnect and probes its modes again. Pause, Close or leaving these checks restores the previous external configuration. Service cleanup or the next app start uses a recovery journal to restore interrupted changes.
+The pattern also runs during plug-orientation, USB-touchscreen, monitor-audio and phone-powered-monitor checks. If you unplug the display, the app waits for it to reconnect and probes its modes again. Pause, Close or leaving these checks restores the previous external configuration. The foreground launcher or the next app start uses a recovery journal to restore interrupted changes.
 
 **HDR is not implemented:** the tested MSM DisplayPort driver exposes no `HDR_OUTPUT_METADATA` property. On the tested setup, the VGA pattern was visually confirmed, as was a stable **2880×1800 at 120 Hz** input. Other modes depend on the display, cable and driver; physical unplug/replug still needs validation beyond the software tests.
 
@@ -100,7 +108,7 @@ The run directory is shown in the app and saved in `/var/lib/nura-tests/current.
 | `results.json` | Verdicts, criteria, answer history, kernel/app version, snapshots and evidence paths. |
 | `photos/*.png` | Camera captures, including retries. The check requests 1280×960; these files retain the capture rather than the smaller UI preview. |
 | `dmesg-start.log`, `dmesg.log` | Kernel log at run start and its latest collected copy. |
-| `logs/services.log`, `logs/*.log` | Service logs and raw action output. |
+| `logs/app.log`, `logs/services.log`, `logs/*.log` | Foreground launcher/app output, sensor-service logs and raw action output. |
 | `logs/imu-samples-*.jsonl`, `logs/compass-samples-*.jsonl` | Sensor samples for the live views. |
 | `logs/external-modes-*.jsonl` | Connector modes, accepted/rejected mode changes and errors. Operator verdicts remain in `results.json`. |
 | `logs/external-pattern-*.svg` | Vector card for each accepted mode. |
@@ -121,16 +129,15 @@ Use those contacts to reconstruct paths or plot coverage later. Coverage PNGs ma
 
 ## Troubleshooting and development
 
-For startup or cleanup errors, inspect the service log from SSH:
+Startup and cleanup errors appear in the launching terminal and are appended to a runtime log, also copied into the run as `logs/app.log`. From another shell:
 
 ```sh
-systemctl status nura-tests.service --no-pager
-journalctl -b -u nura-tests.service --no-pager -n 100
+tail -n 100 /run/nura-tests/launcher.log
 ```
 
 The app requires the internal framebuffer in portrait 1440×3168 with the expected 32-bit pixel layout. For an external-display permission or busy error, check that a graphical compositor is not holding DRM master access. A missing sensor stream, Wi-Fi-off message, unavailable camera or other action error should be investigated in that action's log; **Retry** repeats the check after the cause is fixed.
 
-The 43 software tests exercise state persistence, worker cleanup, radio parsing, sensor transforms, touch evidence, framebuffer updates and DRM selection/restoration with hardware mocked. Run them on Linux or macOS without a phone or root access:
+The 57 software tests exercise state persistence, worker cleanup, radio parsing, sensor transforms, touch evidence, framebuffer updates and DRM selection/restoration with hardware mocked. Lifecycle tests launch synthetic processes to check signals, crashes, inherited locks and orphan cleanup. Run them on Linux or macOS without a phone or root access; macOS skips the Linux process-supervision tests:
 
 ```sh
 python3 -m venv .venv
@@ -141,4 +148,4 @@ python test_app.py
 
 GitHub Actions runs the same suite. Passing it does not establish hardware functionality: new driver, timing or device-profile changes still need on-device checks.
 
-The main entry point is `app.py`; `actions.py` runs hardware workers, `core.py` stores answers, and `reports.py` manages artifacts. Sensor views live in `sensor_live.py` / `sensor_views.py`, radio parsing in `radio_scan.py`, and touch capture in `touch_trace.py`. External output uses `drm_display.py`, `external_display.py` and `display_pattern.py`. Add or revise the test catalogue in `steps.json`; porting to another phone also requires changing the device-specific interfaces in the code and installer.
+`launcher.py` owns the foreground lifecycle and lock; `app.py` draws the UI, `actions.py` runs hardware workers, `core.py` stores answers, and `reports.py` manages artifacts. Running `python3 app.py` also goes through the launcher. Sensor views live in `sensor_live.py` / `sensor_views.py`, radio parsing in `radio_scan.py`, and touch capture in `touch_trace.py`. External output uses `drm_display.py`, `external_display.py` and `display_pattern.py`. Add or revise the test catalogue in `steps.json`; porting to another phone also requires changing the device-specific interfaces in the code and installer.
