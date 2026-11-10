@@ -64,11 +64,29 @@ class UsabilityTests(unittest.TestCase):
         with patch('app.subprocess.Popen') as spawn:
             self.ui.enter_test();self.assertEqual(spawn.call_args.args[0][2],'proximity')
             self.ui.worker=None
-        self.select('camera_main')
+        self.select('torch0')
         with patch('app.subprocess.Popen') as spawn:
             self.ui.enter_test();spawn.assert_not_called()
         enabled={b[0]:b[4] for b in self.ui.renderer.buttons(self.ui)}
         self.assertFalse(enabled['pass']);self.assertTrue(enabled['run'])
+
+    def test_camera_shortcut_and_stop_remain_available_during_control_change(self):
+        with patch('app.subprocess.Popen') as spawn:
+            self.ui.act('jump_camera',force=True)
+            self.assertEqual(spawn.call_args.args[0][2],'camera_main')
+        self.ui.camera_state={'phase':'preview','caps':{'model':'imx689'},'frames':8,'ack':0}
+        self.ui.act('cam_ois',force=True)
+        cmd=json.loads((app.RUN/'camera-command.json').read_text())
+        self.assertEqual((cmd['op'],cmd['ois']),('preview',True))
+        enabled={b[0]:b[4] for b in self.ui.renderer.buttons(self.ui)}
+        self.assertTrue(enabled['cam_stop']);self.assertFalse(enabled['cam_ois'])
+        self.ui.act('cam_stop',force=True)
+        self.assertTrue((app.RUN/'camera-abort').exists())
+        self.assertEqual(json.loads((app.RUN/'camera-command.json').read_text())['op'],'stop')
+        self.ui.camera_state.update(phase='idle',error='Exact size rejected')
+        enabled={b[0]:b[4] for b in self.ui.renderer.buttons(self.ui)}
+        self.assertFalse(enabled['pass']);self.assertTrue(enabled['fail'] and enabled['skip'])
+        self.ui.worker=None
 
     def test_back_stops_old_worker_before_starting_previous_check(self):
         self.select('touch');self.ui.enter_test();previous=self.ui.worker

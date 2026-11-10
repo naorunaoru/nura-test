@@ -19,7 +19,7 @@ LOCK_ENV = 'NURA_TEST_LOCK_FD'
 PARENT_ENV = 'NURA_TEST_PARENT_PID'
 # Recovery journals written by app.py, actions.py and external_display.py.
 JOURNALS = ('console.json', 'display-restore.json', 'restore.json', 'mixer-restore.json',
-            'bluetooth-restore.json', 'nfc-restore.json')
+            'bluetooth-restore.json', 'nfc-restore.json', 'camera-ois-restore.json')
 
 
 class AlreadyRunning(RuntimeError):

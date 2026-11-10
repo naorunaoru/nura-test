@@ -9,7 +9,8 @@ BACKLIGHT=Path('/sys/class/backlight/ae94000.dsi.0/brightness')
 ARTIFACTS=None
 ACTION_LOG=None
 PASSIVE_ACTIONS={'pattern','touch','imu','compass','accelerometer','tilt','light',
-                 'proximity','connection','external_touch','bluetooth','wifi','nfc'}
+                 'proximity','connection','external_touch','bluetooth','wifi','nfc',
+                 'camera_main','camera_wide','camera_front','camera_tele','camera_mono'}
 
 def stopped():return (RUN/'stop').exists()
 
@@ -121,6 +122,10 @@ def mixer_set(name,value,saved):
 
 def recover():
     """Finish restoration if a worker was interrupted or killed."""
+    from camera_live import recover_ois
+    recover_ois(RUN)
+    import shutil
+    if (RUN/'camera-stream').exists():shutil.rmtree(RUN/'camera-stream')
     p=RUN/'restore.json'
     if p.exists():
         values=json.loads(p.read_text())
@@ -246,23 +251,8 @@ def nfc():
         recover()
 
 def camera(kind):
-    from PIL import Image
-    if 'lc898128 ' in (read('/proc/modules') or ''):raise RuntimeError('OIS is active; stop it before camera testing.')
-    ids={'camera_main':'/base/soc@0/cci@ac4f000/i2c-bus@0/camera@1a',
-         'camera_wide':'/base/soc@0/cci@ac4f000/i2c-bus@1/camera@10',
-         'camera_front':'/base/soc@0/cci@ac50000/i2c-bus@1/camera@10',
-         'camera_tele':'/base/soc@0/cci@ac4f000/i2c-bus@1/camera@37',
-         'camera_mono':'/base/soc@0/cci@ac50000/i2c-bus@0/camera@2d'}
-    ppm=RUN/'camera.ppm'
-    try:
-        status('Capturing a local preview. OIS remains off.')
-        output=command(['cam','-c',ids[kind],'-s','role=still,width=1280,height=960,pixelformat=XRGB8888','--capture=15','--file='+str(ppm)],timeout=22)
-        with Image.open(ppm) as im:
-            photo=numbered_file(ARTIFACTS/'photos',kind,'.png')
-            im.convert('RGB').save(photo)
-            im.thumbnail((1200,900));im.convert('RGB').save(RUN/'preview.png')
-        return {'preview_created':True,'camera':kind,'output':output[-1200:],'photo':str(photo.relative_to(ARTIFACTS))}
-    finally:ppm.unlink(missing_ok=True)
+    from camera_live import Camera
+    return Camera(kind,RUN,ARTIFACTS).loop()
 
 def scan_update(kind,rows):
     state={'kind':kind,'devices':rows,'updated':time.time()}

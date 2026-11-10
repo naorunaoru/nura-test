@@ -5,6 +5,7 @@ import argparse, fcntl, json, mmap, os, platform, select, signal, struct, subpro
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 from core import Session, atomic_json, now
 import actions
+import camera_view
 from sensor_views import draw_imu, draw_compass, SensorAnimation
 from reports import ensure_run, collect_logs
 
@@ -131,7 +132,7 @@ class Renderer:
 
     def buttons(self,app):
         if app.mode=='welcome':
-            return [('jump_imu','IMU',(16,882,156,950),'#254f68',True),('jump_compass','Compass',(168,882,308,950),'#254f68',True),('jump_display','Display',(320,882,464,950),'#254f68',True),
+            return [('jump_camera','Cameras',(16,794,464,860),'#254f68',True),('jump_imu','IMU',(16,882,156,950),'#254f68',True),('jump_compass','Compass',(168,882,308,950),'#254f68',True),('jump_display','Display',(320,882,464,950),'#254f68',True),
                     ('exit','Close',(16,968,137,1040),'#263449',True),('start','Resume' if app.session.data['answers'] else 'Start',(148,968,464,1040),'#275f4c',True)]
         if app.mode=='summary':
             complete=app.session.data['completed']
@@ -144,6 +145,8 @@ class Renderer:
                  ('pass','Pass',(16,968,156,1040),'#275f4c',available and app.can_pass()),
                  ('fail','Fail',(168,968,308,1040),'#76333e',available),
                  ('skip','Skip',(320,968,464,1040),'#344052',available)]
+        if step['action'].startswith('camera_'):
+            return buttons+camera_view.buttons(app,step,available)
         if step.get('external_display'):
             connected=bool(app.external and app.external.connected and app.external.modes)
             buttons += [('ext_prev','< Res',(16,790,120,860),'#254f68',available and connected),
@@ -202,7 +205,7 @@ class Renderer:
             if app.session.data['index']<len(STEPS):
                 self.text(draw,'Next: '+STEPS[app.session.data['index']]['title'],(24,364),23,max_lines=2)
             self.text(draw,app.message,(24,650),19,ACCENT,max_lines=3)
-            self.text(draw,str(app.output_directory),(24,780),16,MUTED,max_lines=3)
+            self.text(draw,str(app.output_directory),(24,718),16,MUTED,max_lines=3)
         elif app.mode=='summary':
             counts=app.session.counts()
             self.text(draw,'Results',(24,SAFE_TOP),30,bold=True)
@@ -218,6 +221,8 @@ class Renderer:
             if action in LIVE_ACTIONS:
                 view=draw_imu if action=='imu' else draw_compass
                 view(self,draw,app.sensor_animation.frame(app.sensor_state,app.worker is not None),app.worker is not None)
+            elif action.startswith('camera_'):
+                camera_view.draw(self,image,draw,app,RUN)
             else:
                 y=self.text(draw,step['instruction'],(24,y+18),21,max_lines=3)
                 y=self.text(draw,step.get('expected',step['criterion']),(24,y+12),18,MUTED,max_lines=3)
@@ -234,11 +239,6 @@ class Renderer:
                     for i,c in enumerate(('#f3f3f3','#e34646','#5cb775','#4678df','#242424','#868686')):
                         x=24+(i%3)*144;yy=y+(i//3)*180
                         draw.rectangle((x,yy,x+136,yy+172),fill=c)
-                elif action.startswith('camera_') and (RUN/'preview.png').exists():
-                    try:
-                        with Image.open(RUN/'preview.png') as im:
-                            im.thumbnail((432,400));image.paste(im,((480-im.width)//2,y))
-                    except OSError:pass
                 else:
                     self.text(draw,app.status_text or app.message,(24,y),22,ACCENT,max_lines=12)
             # Keep errors visible even on pages with a dedicated sensor/scan view.
@@ -246,7 +246,7 @@ class Renderer:
             if app.result and not app.result.get('ok'):footer=app.result.get('error','Check failed')
             previous=app.session.data['answers'].get(step['id'])
             if not footer and previous:footer='Previous: '+previous['verdict']
-            if not step.get('external_display'):
+            if not step.get('external_display') and not action.startswith('camera_'):
                 self.text(draw,footer,(24,818),16,'#ff9b9b' if app.result and not app.result.get('ok') else MUTED,max_lines=2)
         for _,label,rect,color,enabled in self.buttons(app):
             draw.rounded_rectangle(rect,radius=9,fill=color if enabled else '#18212d')
@@ -262,6 +262,7 @@ class App:
         self.renderer=Renderer();self.touch_trace=None;self.touch_axes=None;self.touch_start=0;self.touch_coverage=None;self.touch_points=[];self.touch_marker=None;self.last_action=0;self.status_mtime=0
         self.sensor_state={};self.sensor_mtime=0;self.sensor_animation=SensorAnimation()
         self.scan_state={};self.scan_mtime=0;self.scan_page=0
+        camera_view.reset(self)
         self.external=None;self.external_error='';self.framebuffer=None
         self.presented=(None,0)
         self.artifact_root=Path(artifact_root);self.capture_logs=capture_logs
@@ -289,6 +290,7 @@ class App:
     def can_pass(self):
         # A live check may be passed while it runs; any check that reported an
         # error may not. Run-style checks also need a successful run first.
+        if self.camera_state.get('error'):return False
         if self.result is not None:return bool(self.result.get('ok'))
         return STEPS[self.session.data['index']]['action'] in PASSIVE_ACTIONS
 
@@ -301,8 +303,9 @@ class App:
         self.result=None;self.status_text='';self.message='';self.touch_points=[];self.touch_marker=None;self.status_mtime=0
         self.sensor_state={};self.sensor_mtime=0;self.sensor_animation=SensorAnimation()
         self.scan_state={};self.scan_mtime=0;self.scan_page=0
+        camera_view.reset(self)
         self.touch_coverage=None;self.touch_start=self.touch_trace.count if self.touch_trace else 0
-        for name in ('sensors.json','preview.png','status.json','scan.json','result.json','stop'):
+        for name in ('camera-command.json','camera.json','camera-abort','camera-preview.jpg','sensors.json','preview.png','status.json','scan.json','result.json','stop'):
             (RUN/name).unlink(missing_ok=True)
 
     def enter_test(self):
@@ -324,6 +327,8 @@ class App:
         if not force and time.monotonic()-self.last_action<.35:return
         if self.pending_action is not None:return
         self.last_action=time.monotonic();self.dirty=True
+        if key.startswith('cam_'):
+            camera_view.action(self,key,RUN);return
         if key.startswith('ext_'):
             if not self.external:
                 self.external_error='';self.sync_external();return
@@ -347,8 +352,9 @@ class App:
             else:self.enter_test()
             return
         if key=='pause':self.mode='welcome';return
-        if key in ('jump_imu','jump_compass','jump_display'):
-            self.session.data['index']=next(i for i,s in enumerate(STEPS) if (s['id']=='dp-video' if key=='jump_display' else s['action']==key[5:]))
+        if key in ('jump_imu','jump_compass','jump_display','jump_camera'):
+            target={'jump_camera':'camera-main','jump_display':'dp-video','jump_imu':'imu','jump_compass':'compass'}[key]
+            self.session.data['index']=next(i for i,s in enumerate(STEPS) if s['id']==target)
             self.session.save();self.enter_test();return
         if key=='review':self.session.data['index']=0;self.session.save();self.enter_test();return
         if key=='new':
@@ -361,6 +367,7 @@ class App:
             evidence={'run':self.result,'status':self.status_text,'device':actions.snapshot()}
             if self.external:evidence['external_display']=self.external.evidence()
             if self.scan_state:evidence['scan']=self.scan_state
+            if self.camera_state:evidence['camera']=self.camera_state
             if self.touch_trace:
                 evidence['touch_trace']={'file':str(self.touch_trace.path.relative_to(self.output_directory)),
                                          'after_seq':self.touch_start,'through_seq':self.touch_trace.count}
@@ -466,6 +473,12 @@ class App:
                 if p.stat().st_mtime_ns!=self.sensor_mtime:
                     self.sensor_mtime=p.stat().st_mtime_ns;self.sensor_state=json.loads(p.read_text());self.dirty=True
             except (OSError,ValueError):pass
+        if STEPS[self.session.data['index']]['action'].startswith('camera_'):
+            p=RUN/'camera.json'
+            try:
+                if p.stat().st_mtime_ns!=self.camera_mtime:
+                    self.camera_mtime=p.stat().st_mtime_ns;self.camera_state=json.loads(p.read_text());self.dirty=True
+            except (OSError,ValueError):pass
         p=RUN/'scan.json'
         try:
             if p.stat().st_mtime_ns!=self.scan_mtime:
@@ -565,6 +578,7 @@ class App:
             if fb:fb.close()
             else:restore_console()
             (RUN/'preview.png').unlink(missing_ok=True)
+            (RUN/'camera-preview.jpg').unlink(missing_ok=True)
             if self.touch_trace:self.touch_trace.close()
             self.save_logs()
 

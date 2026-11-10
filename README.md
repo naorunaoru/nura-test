@@ -48,7 +48,7 @@ The installer preserves saved state and reports, and refuses to replace files wh
 
 ## Using the suite
 
-Tap **Start** or **Resume** to walk through the checks. **IMU**, **Compass** and **Display** jump directly to those pages; earlier unanswered checks remain pending. After all checks have an answer, the app shows a summary. **New run** starts another run; reopening a completed run shows its existing summary. Starting on a different kernel archives an unfinished run and starts a fresh one.
+Tap **Start** or **Resume** to walk through the checks. **Cameras**, **IMU**, **Compass** and **Display** jump directly to those pages; earlier unanswered checks remain pending. After all checks have an answer, the app shows a summary. **New run** starts another run; reopening a completed run shows its existing summary. Starting on a different kernel archives an unfinished run and starts a fresh one.
 
 | Control | Effect |
 |---|---|
@@ -60,7 +60,7 @@ Tap **Start** or **Resume** to walk through the checks. **IMU**, **Compass** and
 
 Sensor readings, touchscreen capture, screen patterns, connection status and radio scans start when you enter their pages. There is **no minimum test duration**: choose a verdict as soon as you have enough evidence. Leaving a live check stops its worker before advancing. If a live check reports an error, such as Wi-Fi being off or no sensor samples, **Pass** is disabled until a **Retry** succeeds; **Fail** and **Skip** remain available.
 
-Tones, microphone playback, vibration, LEDs, brightness/display cycles and cameras use **Run**. Their **Pass** button becomes available after the action completes successfully; **Fail** and **Skip** remain available. A successful command only means the action ran—you still judge the hardware result.
+Tones, microphone playback, vibration, LEDs, and brightness/display cycles use **Run**. Their **Pass** button becomes available after the action completes successfully; **Fail** and **Skip** remain available. A successful command only means the action ran—you still judge the hardware result.
 
 Controls sit at the bottom, with the top 192 physical pixels reserved for the camera cutout. Use stationary taps for buttons: swiping across a verdict button during the touch check does not activate it. A tap made before a page has been drawn is ignored, so a double-tap cannot answer the next check.
 
@@ -83,11 +83,29 @@ There are 32 checks in [steps.json](steps.json). Each page states its criterion.
 | Bluetooth | Put an accessory in discovery/pairing mode. The list shows observed names, addresses and RSSI; the app does not pair. If it enables Bluetooth, it restores the previous off state on exit. |
 | Wi-Fi | Expect nearby SSIDs, BSSIDs, channels, signal percentages and security. Enable Wi-Fi before testing; scanning does not change connections. **Next page** cycles radio lists longer than six rows. |
 | NFC | Present a tag and expect detection. The app does not read or write tag contents. |
-| Cameras | Run captures from the main, ultrawide, front, telephoto and colour-filter sensor—the last is labelled **Fifth camera** in the app. Expect a recognisable preview; use a bright, distant scene for telephoto. Captures are saved, including retries. |
+| Cameras | **Cameras** opens the main sensor directly. Each camera page starts its own live preview; use a bright, distant target for telephoto. |
 
 Accessory checks need the corresponding monitor, USB devices, chargers or NFC tag; use Skip when you do not have them. This suite does not cover every subsystem: for example, cellular calls/data, GNSS and video codecs have no checks here.
 
-Camera checks cover capture with optical image stabilisation (OIS) disabled. They refuse to run while the `lc898128` OIS module is loaded, and the app does not unload it for you. If the page reports OIS active, choose **Skip**; testing capture with OIS enabled is outside this suite's current coverage.
+## Camera tests
+
+**Preview** starts at 640×480 with continuous autofocus when the sensor exposes it. Move between near and far targets to judge focus; **AF scan** requests a single scan and shows the driver’s focus state. On the main camera, compare the same small hand movement with **OIS: off** and **OIS: on**. Stop immediately if the lens buzzes continuously. Each OIS trial stops after at most 20 seconds of streaming and restores the previous driver setting; the app leaves the module blacklist alone. Gyro samples and active actuator power confirm prerequisites, not that the image is steadier.
+
+**Capture** → **Full sensor** requests the reported pixel-array dimensions exactly, in processed RGB or packed RAW. A driver that would reduce the resolution gets a recorded failure. **Max stream** requests the largest size advertised for the selected format; **1280×960 RGB** takes a smaller reference photo. The result includes the requested and configured sizes, any error, and the saved file on success.
+
+**Controls** lists the controls the selected camera advertises. Select one with **< Ctrl / Ctrl >**, choose a value with **− / +**, and tap **Apply** to restart preview with that setting. Compare the image and the returned frame metadata, then mark **Works** or **No effect** to save your observation with a frame. A missing readback is shown as **not reported**; autofocus triggers, for example, can produce a change in focus state without echoing the trigger.
+
+Full-sensor RAW results on kernel `7.2.0-nura-chgfix1` (other kernels may differ):
+
+| Sensor | Array | Full-sensor RAW result |
+|---|---:|---|
+| Main · IMX689 | 8000×6000 | Rejected; **Max stream** saved 4000×3000. |
+| Ultrawide · IMX586 | 8000×6000 | Rejected; driver would adjust the size. |
+| Telephoto · S5K3M5 | 4208×3120 | Captured. |
+| Front · IMX471 | 4656×3496 | Captured. |
+| Colour-filter · GC5035 | 2592×1944 | Captured. |
+
+On the main camera, 1280×960 RGB also succeeded. The advertised 3992×3000 RGB mode configured, but the driver could not allocate its buffers.
 
 ## External display modes
 
@@ -114,7 +132,8 @@ The run directory is shown in the app and saved in `/var/lib/nura-tests/current.
 | Artifact | Contents |
 |---|---|
 | `results.json` | Verdicts, criteria, answer history, kernel/app version, snapshots and evidence paths. |
-| `photos/*.png` | Camera captures, including retries. The check requests 1280×960; these files retain the capture rather than the smaller UI preview. |
+| `photos/*.png`, `photos/*.bin` | RGB stills, preview snapshots, control-verdict frames and packed RAW stills. Still captures have a JSON sidecar with dimensions, format and frame metadata. |
+| `logs/camera_*` | Per-sensor capabilities, request and verdict events, raw stream output and capture failures. |
 | `dmesg-start.log`, `dmesg.log` | Kernel log at run start and its latest collected copy. |
 | `logs/app.log`, `logs/services.log`, `logs/*.log` | Foreground launcher/app output, sensor-service logs and raw action output. |
 | `logs/imu-samples-*.jsonl`, `logs/compass-samples-*.jsonl` | Sensor samples for the live views. |
@@ -145,7 +164,7 @@ tail -n 100 /run/nura-tests/launcher.log
 
 The app requires the internal framebuffer in portrait 1440×3168 with the expected 32-bit pixel layout. For an external-display permission or busy error, check that a graphical compositor is not holding DRM master access. A missing sensor stream, Wi-Fi-off message, unavailable camera or other action error should be investigated in that action's log; **Retry** repeats the check after the cause is fixed.
 
-The 65 software tests exercise state persistence, worker cleanup, radio parsing, sensor transforms, touch evidence, framebuffer updates and DRM selection/restoration with hardware mocked. Lifecycle tests launch synthetic processes to check signals, crashes, inherited locks and orphan cleanup. Run them on Linux or macOS without a phone or root access; macOS skips the Linux process-supervision tests:
+The software tests exercise state persistence, worker cleanup, strict camera captures and OIS restoration, radio parsing, sensor transforms, touch evidence, framebuffer updates and DRM selection/restoration with hardware mocked. Lifecycle tests launch synthetic processes to check signals, crashes, inherited locks and orphan cleanup. Run them on Linux or macOS without a phone or root access; macOS skips the Linux process-supervision tests:
 
 ```sh
 python3 -m venv .venv
@@ -156,4 +175,4 @@ python test_app.py
 
 GitHub Actions runs the same suite. Passing it does not establish hardware functionality: new driver, timing or device-profile changes still need on-device checks.
 
-`launcher.py` owns the foreground lifecycle and lock; `app.py` draws the UI, `actions.py` runs hardware workers, `core.py` stores answers, and `reports.py` manages artifacts. Running `python3 app.py` also goes through the launcher. Sensor views live in `sensor_live.py` / `sensor_views.py`, radio parsing in `radio_scan.py`, and touch capture in `touch_trace.py`. External output uses `drm_display.py`, `external_display.py` and `display_pattern.py`. Add or revise the test catalogue in `steps.json`; porting to another phone also requires changing the device-specific interfaces in the code and installer.
+`launcher.py` owns the foreground lifecycle and lock; `app.py` draws the UI, `actions.py` runs hardware workers, `core.py` stores answers, and `reports.py` manages artifacts. Running `python3 app.py` also goes through the launcher. Camera capture and controls live in `camera_live.py` and `camera_view.py`. Sensor views live in `sensor_live.py` / `sensor_views.py`, radio parsing in `radio_scan.py`, and touch capture in `touch_trace.py`. External output uses `drm_display.py`, `external_display.py` and `display_pattern.py`. Add or revise the test catalogue in `steps.json`; porting to another phone also requires changing the device-specific interfaces in the code and installer.

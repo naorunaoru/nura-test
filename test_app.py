@@ -116,22 +116,6 @@ class ArtifactTests(unittest.TestCase):
             self.assertEqual((directory/'dmesg.log').read_text(),dump)
             self.assertEqual(result['files']['dmesg.log']['returncode'],0)
 
-    def test_camera_retains_full_photo(self):
-        try:from PIL import Image
-        except ImportError:self.skipTest('Pillow is available on the phone')
-        with tempfile.TemporaryDirectory() as d:
-            directory=Path(d);runtime=directory/'runtime';runtime.mkdir()
-            def capture(*args,**kwargs):
-                Image.new('RGB',(1280,960),(20,80,140)).save(runtime/'camera.ppm')
-                return 'capture completed'
-            with patch.object(actions,'ARTIFACTS',directory),patch.object(actions,'RUN',runtime),patch.object(actions,'command',side_effect=capture),patch.object(actions,'read',return_value=''):
-                first=actions.camera('camera_main');second=actions.camera('camera_main')
-            self.assertNotEqual(first['photo'],second['photo'])
-            with Image.open(directory/first['photo']) as image:
-                self.assertEqual(image.size,(1280,960))
-            self.assertFalse((runtime/'camera.ppm').exists())
-            self.assertTrue((directory/second['photo']).exists())
-
 class SensorTests(unittest.TestCase):
     def test_level_marker_moves_toward_raised_edge(self):
         self.assertEqual(level_point(level_up((0,0,9.8))),(240,507))
@@ -207,6 +191,7 @@ class SensorTests(unittest.TestCase):
         self.assertTrue(sample_state(s,('compass',),False)[1])
         s['error']='failed';self.assertFalse(sample_state(s,('compass',),False)[1])
 
+from test_camera import CameraTests
 from test_usability import UsabilityTests, RadioTests
 from test_display import DisplayTests
 from test_launcher import LockTests, LauncherTests

@@ -250,46 +250,46 @@
   {
     "id": "camera-main",
     "title": "Main rear camera",
-    "instruction": "Aim, then Run to capture. OIS stays off. Photo saved.",
-    "criterion": "A recognisable preview appears without continuous buzzing.",
+    "instruction": "Use Preview, Capture and Controls.",
+    "criterion": "Live frames are stable; judge focus and supported stabilisation, exact-size capture results, and changes from advertised controls.",
     "action": "camera_main",
     "group": "Built-in hardware",
-    "expected": "Recognisable image; no continuous buzzing."
+    "expected": "Check the live image, exact capture sizes and control response."
   },
   {
     "id": "camera-wide",
     "title": "Ultrawide camera",
-    "instruction": "Aim, then Run to capture. Photo saved.",
-    "criterion": "The preview is recognisable and wider than the main camera view.",
+    "instruction": "Use Preview, Capture and Controls.",
+    "criterion": "Live frames are stable; judge focus and supported stabilisation, exact-size capture results, and changes from advertised controls.",
     "action": "camera_wide",
     "group": "Built-in hardware",
-    "expected": "Wider field of view than the main camera."
+    "expected": "Check the live image, exact capture sizes and control response."
   },
   {
     "id": "camera-front",
     "title": "Front camera",
-    "instruction": "Aim, then Run to capture. Photo saved.",
-    "criterion": "The preview is recognisable, without being too dark or too bright to see the scene.",
+    "instruction": "Use Preview, Capture and Controls.",
+    "criterion": "Live frames are stable; judge focus and supported stabilisation, exact-size capture results, and changes from advertised controls.",
     "action": "camera_front",
     "group": "Built-in hardware",
-    "expected": "Recognisable image with usable exposure."
+    "expected": "Check the live image, exact capture sizes and control response."
   },
   {
     "id": "camera-tele",
     "title": "Telephoto camera",
-    "instruction": "Aim at a bright, distant scene, then Run. Photo saved.",
-    "criterion": "The telephoto preview is recognisable without continuous buzzing.",
+    "instruction": "Use Preview, Capture and Controls.",
+    "criterion": "Live frames are stable; judge focus and supported stabilisation, exact-size capture results, and changes from advertised controls.",
     "action": "camera_tele",
     "group": "Built-in hardware",
-    "expected": "Recognisable image; no continuous buzzing."
+    "expected": "Check the live image, exact capture sizes and control response."
   },
   {
     "id": "camera-mono",
-    "title": "Fifth camera",
-    "instruction": "Aim at a well-lit scene, then Run. Photo saved.",
-    "criterion": "A recognisable preview is produced.",
+    "title": "Colour-filter camera",
+    "instruction": "Use Preview, Capture and Controls.",
+    "criterion": "Live frames are stable; judge focus and supported stabilisation, exact-size capture results, and changes from advertised controls.",
     "action": "camera_mono",
     "group": "Built-in hardware",
-    "expected": "Recognisable image from the fifth sensor."
+    "expected": "Check the live image, exact capture sizes and control response."
   }
 ]
