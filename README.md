@@ -2,7 +2,7 @@
 
 A touchscreen hardware test tool for the **OnePlus 8 Pro (`instantnoodlep`) running Nura Linux**. It runs directly on the phone's framebuffer, presents one check at a time, and saves your Pass / Fail / Skip decisions with logs and captured evidence.
 
-This is a device-specific tool for port development and regression testing. The current profile expects the phone's 1440×3168 portrait framebuffer, `s6sy761` touchscreen, and the audio, camera and sensor interfaces used by the [unofficial OnePlus 8 Pro Nura port](https://github.com/naorunaoru/oneplus-instantnoodlep-nura-unofficial). Installing this app does not install that port's kernel or firmware.
+This is a device-specific tool for port development and regression testing. The current profile expects the phone's 1440×3168 portrait framebuffer, `s6sy761` touchscreen, and the audio, camera and sensor interfaces used by the [unofficial OnePlus 8 Pro Nura port](https://github.com/darknagel/oneplus-instantnoodlep-nura-unofficial). Installing this app does not install that port's kernel or firmware.
 
 ## Install and run
 
