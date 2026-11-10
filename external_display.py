@@ -52,11 +52,13 @@ class ExternalDisplay:
             else:raise RuntimeError('Internal DRM connector not found')
             self.drm=DRM(self.card)
             connectors=self.drm.connectors()
-            internal=next(c for c in connectors if c['type']==16 and c['connected'])
+            internal=next((c for c in connectors if c['type']==16 and c['connected']),None)
+            if internal is None:raise RuntimeError('Internal display is not connected')
             internal_crtc=internal['properties']['CRTC_ID']['value']
             self.internal_plane,props=self.drm.primary(internal_crtc);self.internal_fb=props['FB_ID']['value']
             self.internal_crtc=internal_crtc
-            self.external=next(c for c in connectors if c['type'] in (10,11))
+            self.external=next((c for c in connectors if c['type'] in (10,11)),None)
+            if self.external is None:raise RuntimeError('The kernel exposes no external display connector (DP/HDMI)')
             self.status_path=Path('/sys/class/drm')/(Path(self.card).name+'-'+self.external['name'])/'status'
             self.poll(force=True)
         except Exception:

@@ -110,6 +110,31 @@ class LockTests(unittest.TestCase):
             self.assertFalse((root/'console.json').exists())
 
 
+    def test_discard_journal_removes_pending_restores_and_prints_them(self):
+        import contextlib, io
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            (root/'bluetooth-restore.json').write_text(json.dumps({'powered':False}))
+            (root/'mixer-restore.json').write_text(json.dumps({'VA_DEC0 Volume':'84'}))
+            (root/'launcher.log').write_text('kept')
+            output=io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertEqual(launcher.discard_journals(root),0)
+            self.assertFalse((root/'bluetooth-restore.json').exists())
+            self.assertFalse((root/'mixer-restore.json').exists())
+            self.assertEqual((root/'launcher.log').read_text(),'kept')
+            # The saved values are the only record of what was not restored.
+            self.assertIn('VA_DEC0 Volume',output.getvalue());self.assertIn('84',output.getvalue())
+
+    def test_discard_journal_is_refused_while_an_instance_holds_the_lock(self):
+        import contextlib, io
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);(root/'restore.json').write_text('{}')
+            with launcher.Instance(root),contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(launcher.discard_journals(root),1)
+            self.assertTrue((root/'restore.json').exists())
+
+
 @unittest.skipUnless(sys.platform.startswith('linux'), 'Linux subreaper and pidfd integration')
 class LauncherTests(unittest.TestCase):
     def setUp(self):

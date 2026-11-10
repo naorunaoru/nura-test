@@ -141,7 +141,7 @@ class Renderer:
         passive=step['action'] in PASSIVE_ACTIONS
         buttons=[('back','Back',(16,882,119,950),'#263449',available),
                  ('pause','Pause',(361,882,464,950),'#263449',available),
-                 ('pass','Pass',(16,968,156,1040),'#275f4c',available and (passive or bool(app.result and app.result.get('ok')))),
+                 ('pass','Pass',(16,968,156,1040),'#275f4c',available and app.can_pass()),
                  ('fail','Fail',(168,968,308,1040),'#76333e',available),
                  ('skip','Skip',(320,968,464,1040),'#344052',available)]
         if step.get('external_display'):
@@ -263,6 +263,7 @@ class App:
         self.sensor_state={};self.sensor_mtime=0;self.sensor_animation=SensorAnimation()
         self.scan_state={};self.scan_mtime=0;self.scan_page=0
         self.external=None;self.external_error='';self.framebuffer=None
+        self.presented=(None,0)
         self.artifact_root=Path(artifact_root);self.capture_logs=capture_logs
         self.prepare_run()
 
@@ -273,6 +274,23 @@ class App:
         # command-mode panel back on. Let the blanking worker own the display.
         return not (self.worker is not None and
                     STEPS[self.session.data['index']]['action']=='panel_cycle')
+
+    def mark_presented(self,now=None):
+        """Record when the current page reached the screen (touch-event clock)."""
+        self.presented=(self.generation(),time.time() if now is None else now)
+
+    def touch_is_fresh(self,event_time):
+        # Input queues while a verdict is saved. A contact that began before this
+        # page was drawn was aimed at the previous page. If the wall clock has
+        # been set back since the draw, timestamps cannot be compared: accept.
+        generation,shown=self.presented
+        return generation==self.generation() and (event_time>=shown or time.time()<shown)
+
+    def can_pass(self):
+        # A live check may be passed while it runs; any check that reported an
+        # error may not. Run-style checks also need a successful run first.
+        if self.result is not None:return bool(self.result.get('ok'))
+        return STEPS[self.session.data['index']]['action'] in PASSIVE_ACTIONS
 
     def button_at(self,x,y):
         for key,_,r,_,enabled in self.renderer.buttons(self):
@@ -339,7 +357,7 @@ class App:
         if key=='back':self.session.back();self.enter_test();return
         if key=='run':self.start_worker();return
         if key in ('pass','fail','skip'):
-            if key=='pass' and STEPS[self.session.data['index']]['action'] not in PASSIVE_ACTIONS and not (self.result and self.result.get('ok')):return
+            if key=='pass' and not self.can_pass():return
             evidence={'run':self.result,'status':self.status_text,'device':actions.snapshot()}
             if self.external:evidence['external_display']=self.external.evidence()
             if self.scan_state:evidence['scan']=self.scan_state
@@ -365,8 +383,9 @@ class App:
                 self.framebuffer.external=self.external;self.dirty=True
             elif self.external and self.external.poll():self.dirty=True
         except Exception as error:
-            self.external_error=str(error)
-            if self.external:self.external.error=str(error)
+            # Some exceptions have no message; an empty error would retry forever.
+            self.external_error=str(error) or type(error).__name__
+            if self.external:self.external.error=self.external_error
             self.dirty=True
 
     def close_external(self):
@@ -395,7 +414,7 @@ class App:
             x=(point['raw_x']-self.touch_axes[0][0])*479/(self.touch_axes[0][1]-self.touch_axes[0][0])
             y=(point['raw_y']-self.touch_axes[1][0])*1055/(self.touch_axes[1][1]-self.touch_axes[1][0])
             if point['active'] and point['begin'] is None:
-                point['begin']=(self.button_at(x,y),self.generation(),x,y)
+                point['begin']=(self.button_at(x,y) if self.touch_is_fresh(event_time) else None,self.generation(),x,y)
             begin=point['begin']
             if begin and (active>1 or abs(x-begin[2])>16 or abs(y-begin[3])>16):point['moved']=True
             if point.get('changed') and (point['active'] or point.get('release')):
@@ -506,6 +525,7 @@ class App:
                 if self.display_updates_allowed() and time.monotonic()-last_frame>=interval and (self.dirty or (self.worker and (live or time.monotonic()-last_frame>1))):
                     last_frame=time.monotonic()
                     fb.draw(self.renderer.render(self));self.dirty=False
+                    if self.presented[0]!=self.generation():self.mark_presented()
                     atomic_json(RUN/'ui.json',{'mode':self.mode,'index':self.session.data['index'],'busy':self.worker is not None,'updated':now()})
                 delay=max(.001,min(.01,interval-(time.monotonic()-last_frame))) if live else .1
                 if not select.select([dev],[],[],delay)[0]:continue

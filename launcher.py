@@ -17,6 +17,9 @@ ROOT = Path(__file__).resolve().parent
 RUN = Path('/run/nura-tests')
 LOCK_ENV = 'NURA_TEST_LOCK_FD'
 PARENT_ENV = 'NURA_TEST_PARENT_PID'
+# Recovery journals written by app.py, actions.py and external_display.py.
+JOURNALS = ('console.json', 'display-restore.json', 'restore.json', 'mixer-restore.json',
+            'bluetooth-restore.json', 'nfc-restore.json')
 
 
 class AlreadyRunning(RuntimeError):
@@ -166,6 +169,25 @@ def request_stop(runtime=RUN, timeout=40):
         return 1
 
 
+def discard_journals(runtime=RUN):
+    """Give up on a restoration that cannot succeed, so the next launch can start."""
+    runtime = Path(runtime)
+    try:
+        with Instance(runtime):
+            pending = [runtime / name for name in JOURNALS if (runtime / name).exists()]
+            if not pending:
+                print('No unfinished restoration to discard.')
+                return 0
+            print('Discarding unfinished restoration. These saved settings were NOT restored:')
+            for path in pending:
+                print(f'--- {path.name}\n{path.read_text().rstrip()}')
+                path.unlink()
+            return 0
+    except (AlreadyRunning, OSError) as error:
+        print(f'Could not discard the recovery journal: {error}', file=sys.stderr)
+        return 1
+
+
 def supervise(command, recovery, runtime=RUN, grace=8):
     """Keep the invoking shell occupied through UI exit, child reaping and recovery."""
     runtime = Path(runtime)
@@ -222,7 +244,8 @@ def supervise(command, recovery, runtime=RUN, grace=8):
             try:
                 # Recover an earlier interrupted invocation before opening the devices.
                 if run_recovery() != 0:
-                    raise RuntimeError('Recovery failed; see /run/nura-tests/launcher.log')
+                    raise RuntimeError('Recovery failed; see /run/nura-tests/launcher.log. If it cannot '
+                                       'succeed, nura-tests --discard-journal abandons it.')
                 if command and not interrupted:
                     proc = subprocess.Popen(command, **options)
                     owner['app'] = {'pid': proc.pid, 'start': process_start(proc.pid)}
@@ -272,11 +295,15 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--stop', action='store_true', help='stop the running instance and wait for cleanup')
     mode.add_argument('--restore', action='store_true', help='recover interrupted changes without opening the UI')
+    mode.add_argument('--discard-journal', action='store_true',
+                      help='abandon a restoration that keeps failing, printing what was not restored')
     args = parser.parse_args(argv)
     if os.geteuid() != 0:
         parser.exit(1, 'Run nura-tests as root.\n')
     if args.stop:
         return request_stop()
+    if args.discard_journal:
+        return discard_journals()
     try:
         command = [sys.executable, '-u', str(ROOT / 'app.py'), '--managed']
         return supervise(None if args.restore else command, command + ['--restore'])

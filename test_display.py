@@ -129,4 +129,29 @@ class DisplayTests(unittest.TestCase):
                 self.assertTrue(controls['ext_apply']);self.assertTrue(controls['pass'])
                 self.assertNotIn('run',controls)
 
+    def test_unexplained_display_failure_is_reported_once_not_retried(self):
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(app,'RUN',Path(d)/'runtime'):
+                ui=app.App(Path(d)/'state',artifact_root=Path(d)/'artifacts',capture_logs=False)
+            ui.mode='test';ui.session.data['index']=next(i for i,s in enumerate(app.STEPS) if s['id']=='dp-video')
+            ui.framebuffer=SimpleNamespace(external=None,previous_image=None)
+            # An exception without a message must still count as an error.
+            with patch('external_display.ExternalDisplay',side_effect=StopIteration()) as opened:
+                for _ in range(3):ui.sync_external()
+            self.assertEqual(opened.call_count,1)
+            self.assertTrue(ui.external_error)
+
+    def test_kernel_without_external_connector_is_explained(self):
+        from unittest.mock import Mock
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);(root/'sys/class/drm/card0-DSI-1').mkdir(parents=True)
+            internal={'id':32,'type':16,'name':'DSI-1','connected':True,'modes':[],'possible_crtcs':1,'properties':{'CRTC_ID':{'value':94}}}
+            drm=Mock();drm.connectors.return_value=[internal];drm.primary.return_value=(46,{'FB_ID':{'value':97}})
+            sysfs=lambda p:root/str(p).lstrip('/') if str(p).startswith('/sys') else Path(p)
+            with patch('external_display.DRM',return_value=drm),patch('external_display.Path',side_effect=sysfs):
+                with self.assertRaises(RuntimeError) as failure:
+                    ExternalDisplay(root/'runtime',root/'artifacts')
+            self.assertIn('external',str(failure.exception).lower())
+            drm.close.assert_called_once()
+
 if __name__=='__main__':unittest.main()

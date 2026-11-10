@@ -132,6 +132,42 @@ class UsabilityTests(unittest.TestCase):
         self.assertTrue(self.ui.result['cleanup_failed'])
         self.assertIsNone(self.ui.pending_action)
 
+    def tap(self,x,y,event_time):
+        point=dict(raw_x=x,raw_y=y,active=True,begin=None,tracking_id=10,new=True,changed=True)
+        self.ui.touch_frame({0:point},event_time)
+        point.update(active=False,release=True,changed=True);self.ui.touch_frame({0:point},event_time+.05)
+
+    def test_tap_made_before_the_page_was_drawn_does_not_act_on_it(self):
+        # Taps queue up while a verdict is being saved; they belong to the old page.
+        self.ui.mode='test';self.select('light');self.ui.touch_axes=((0,479),(0,1055))
+        self.ui.mark_presented(now=100)
+        with patch.object(self.ui,'act') as act:
+            self.tap(240,1000,99.5);act.assert_not_called()
+            self.tap(240,1000,100.5);act.assert_called_once_with('fail')
+
+    def test_tap_is_ignored_until_the_new_page_is_drawn(self):
+        self.ui.mode='test';self.select('light');self.ui.touch_axes=((0,479),(0,1055))
+        self.ui.mark_presented(now=100)
+        self.ui.session.data['index']+=1
+        with patch.object(self.ui,'act') as act:
+            self.tap(240,1000,100.5);act.assert_not_called()
+            self.ui.mark_presented(now=101)
+            self.tap(240,1000,101.5);act.assert_called_once_with('fail')
+
+    def test_taps_still_work_after_the_clock_is_set_back(self):
+        self.ui.mode='test';self.select('light');self.ui.touch_axes=((0,479),(0,1055))
+        self.ui.mark_presented(now=time.time()+3600)
+        with patch.object(self.ui,'act') as act:
+            self.tap(240,1000,time.time());act.assert_called_once_with('fail')
+
+    def test_pass_is_refused_after_a_live_check_reported_an_error(self):
+        self.ui.mode='test';self.select('wifi')
+        self.ui.result={'ok':False,'error':'Wi-Fi is off. Enable it, then Retry.'}
+        enabled={b[0]:b[4] for b in self.ui.renderer.buttons(self.ui)}
+        self.assertFalse(enabled['pass']);self.assertTrue(enabled['fail']);self.assertTrue(enabled['skip'])
+        self.ui.act('pass',force=True)
+        self.assertNotIn('wifi',self.ui.session.data['answers'])
+
     def test_camera_inset_and_long_labels_fit(self):
         # Portable test font, no device font installation required.
         self.ui.renderer.font=lambda size,bold=False:ImageFont.load_default(size=size)

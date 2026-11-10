@@ -26,6 +26,14 @@ nura-tests --stop
 
 If the UI crashes, the launcher stops leftover test processes and restores recorded display, audio and device settings. If the launcher is killed too, any unfinished recovery is retried from its journal on the next launch; `nura-tests --restore` runs recovery without opening the UI. Both normal startup and recovery take the same instance lock.
 
+The app does not start while recovery fails, for example when `bluetoothd` or an audio control it must restore is gone. Fix the cause and launch again. If recovery cannot succeed, abandon it:
+
+```sh
+nura-tests --discard-journal
+```
+
+This prints the saved settings that were **not** restored, deletes the journal, and lets the next launch start. Restore those settings by hand or reboot.
+
 The target system needs working framebuffer/DRM, evdev and hardware drivers. Use a console session with any graphical compositor stopped: external-display tests need exclusive DRM master access. The installer adds Python, Pillow, evdev, Droid fonts, libssc, libdrm, NetworkManager CLI and BlueZ. Individual checks also use tools and services supplied by the port: `monitor-sensor` with `iio-sensor-proxy`, ALSA's `amixer`/`aplay`/`arecord`, libcamera's `cam`, and `neard` for NFC. A missing interface or tool is reported by the affected check.
 
 Close a running foreground instance before updating, or use `nura-tests --stop` from another shell. Then, from the cloned directory:
@@ -50,11 +58,11 @@ Tap **Start** or **Resume** to walk through the checks. **IMU**, **Compass** and
 | **Close** | Exit the app and restore the console. Available on the start and results screens. |
 | **Run / Stop / Retry** | Trigger, stop or repeat an action that needs an explicit start. Retry also restarts a live check that ended. |
 
-Sensor readings, touchscreen capture, screen patterns, connection status and radio scans start when you enter their pages. There is **no minimum test duration**: choose a verdict as soon as you have enough evidence. Leaving a live check stops its worker before advancing.
+Sensor readings, touchscreen capture, screen patterns, connection status and radio scans start when you enter their pages. There is **no minimum test duration**: choose a verdict as soon as you have enough evidence. Leaving a live check stops its worker before advancing. If a live check reports an error, such as Wi-Fi being off or no sensor samples, **Pass** is disabled until a **Retry** succeeds; **Fail** and **Skip** remain available.
 
 Tones, microphone playback, vibration, LEDs, brightness/display cycles and cameras use **Run**. Their **Pass** button becomes available after the action completes successfully; **Fail** and **Skip** remain available. A successful command only means the action ran—you still judge the hardware result.
 
-Controls sit at the bottom, with the top 192 physical pixels reserved for the camera cutout. Use stationary taps for buttons: swiping across a verdict button during the touch check does not activate it.
+Controls sit at the bottom, with the top 192 physical pixels reserved for the camera cutout. Use stationary taps for buttons: swiping across a verdict button during the touch check does not activate it. A tap made before a page has been drawn is ignored, so a double-tap cannot answer the next check.
 
 ## Checks and expected results
 
@@ -137,7 +145,7 @@ tail -n 100 /run/nura-tests/launcher.log
 
 The app requires the internal framebuffer in portrait 1440×3168 with the expected 32-bit pixel layout. For an external-display permission or busy error, check that a graphical compositor is not holding DRM master access. A missing sensor stream, Wi-Fi-off message, unavailable camera or other action error should be investigated in that action's log; **Retry** repeats the check after the cause is fixed.
 
-The 57 software tests exercise state persistence, worker cleanup, radio parsing, sensor transforms, touch evidence, framebuffer updates and DRM selection/restoration with hardware mocked. Lifecycle tests launch synthetic processes to check signals, crashes, inherited locks and orphan cleanup. Run them on Linux or macOS without a phone or root access; macOS skips the Linux process-supervision tests:
+The 65 software tests exercise state persistence, worker cleanup, radio parsing, sensor transforms, touch evidence, framebuffer updates and DRM selection/restoration with hardware mocked. Lifecycle tests launch synthetic processes to check signals, crashes, inherited locks and orphan cleanup. Run them on Linux or macOS without a phone or root access; macOS skips the Linux process-supervision tests:
 
 ```sh
 python3 -m venv .venv
