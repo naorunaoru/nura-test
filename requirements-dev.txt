@@ -1,0 +1,2 @@
+# The hardware-free suite uses Pillow; other imports are from the standard library.
+Pillow==13.0.0

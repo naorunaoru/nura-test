@@ -1,0 +1,295 @@
+[
+  {
+    "id": "display",
+    "title": "Screen pattern",
+    "instruction": "Check colour blocks and text.",
+    "criterion": "Colours are distinct and the image is steady, without lines, corrupted blocks or flickering.",
+    "action": "pattern",
+    "group": "Built-in hardware",
+    "expected": "No flicker, lines or corrupted pixels."
+  },
+  {
+    "id": "touch",
+    "title": "Internal touchscreen",
+    "instruction": "Sweep the screen, edges and corners.",
+    "criterion": "Yellow marks follow your finger across the screen. No new marks appear when you lift it.",
+    "action": "touch",
+    "group": "Built-in hardware",
+    "expected": "Yellow dots mark contacts; gaps show untested areas."
+  },
+  {
+    "id": "brightness",
+    "title": "Brightness",
+    "instruction": "Run cycles the backlight through three levels.",
+    "criterion": "Brightness changes and returns to its starting level.",
+    "action": "brightness",
+    "group": "Built-in hardware",
+    "expected": "Returns to the starting brightness."
+  },
+  {
+    "id": "panel-cycle",
+    "title": "Display off and on",
+    "instruction": "Run blanks the display for 2 s, then restores it.",
+    "criterion": "The picture returns without persistent corruption or flicker.",
+    "action": "panel_cycle",
+    "group": "Built-in hardware",
+    "expected": "Picture returns without corruption or flicker."
+  },
+  {
+    "id": "haptics",
+    "title": "Brief vibration",
+    "instruction": "Hold the phone. Run triggers a short vibration.",
+    "criterion": "You feel a brief pulse that stops immediately afterwards.",
+    "action": "haptic",
+    "group": "Built-in hardware",
+    "expected": "One brief pulse."
+  },
+  {
+    "id": "torch-0",
+    "title": "First torch LED",
+    "instruction": "Point the rear LEDs away from your eyes. Run pulses LED 1.",
+    "criterion": "One rear LED lights briefly and turns fully off.",
+    "action": "torch0",
+    "group": "Built-in hardware",
+    "expected": "LED lights, then turns fully off."
+  },
+  {
+    "id": "torch-1",
+    "title": "Second torch LED",
+    "instruction": "Point the rear LEDs away from your eyes. Run pulses LED 2.",
+    "criterion": "The other rear LED lights briefly and turns fully off.",
+    "action": "torch1",
+    "group": "Built-in hardware",
+    "expected": "LED lights, then turns fully off."
+  },
+  {
+    "id": "speaker-left",
+    "title": "Earpiece speaker",
+    "instruction": "Run plays the left channel through the earpiece.",
+    "criterion": "The earpiece speaker is audible, without rattling or distortion.",
+    "action": "speaker_left",
+    "group": "Built-in hardware",
+    "expected": "Clear tone, no rattling or distortion."
+  },
+  {
+    "id": "speaker-right",
+    "title": "Bottom speaker",
+    "instruction": "Run plays the right channel through the bottom speaker.",
+    "criterion": "The bottom speaker is audible, without rattling or distortion.",
+    "action": "speaker_right",
+    "group": "Built-in hardware",
+    "expected": "Clear tone, no rattling or distortion."
+  },
+  {
+    "id": "microphone",
+    "title": "Microphone playback",
+    "instruction": "Run records 3 s of speech, then plays it back.",
+    "criterion": "Your speech is recognisable without severe noise or distortion.",
+    "action": "microphone",
+    "group": "Built-in hardware",
+    "expected": "Clear speech. Recording is deleted after playback."
+  },
+  {
+    "id": "imu",
+    "title": "IMU: bubble level",
+    "instruction": "Tilt the phone in each direction.",
+    "criterion": "The bubble follows tilt toward the raised edge, centers when level, and stays steady when the phone is still.",
+    "action": "imu",
+    "group": "Built-in hardware",
+    "expected": "Bubble follows the raised edge and centers when level."
+  },
+  {
+    "id": "compass",
+    "title": "Magnetic compass",
+    "instruction": "Keep flat; compare with a magnetic-north reference.",
+    "criterion": "The compass turns smoothly and agrees with the reference device when both use magnetic north.",
+    "action": "compass",
+    "group": "Built-in hardware",
+    "expected": "Heading agrees in several directions."
+  },
+  {
+    "id": "tilt",
+    "title": "Face-up and face-down tilt",
+    "instruction": "Turn screen-up, upright, then screen-down.",
+    "criterion": "The labels change to face-up, vertical and face-down respectively. Choose Fail if face-up and face-down are reversed.",
+    "action": "tilt",
+    "group": "Built-in hardware",
+    "expected": "Expect face-up, vertical, then face-down."
+  },
+  {
+    "id": "light",
+    "title": "Ambient light sensor",
+    "instruction": "Cover and uncover the sensor at the top.",
+    "criterion": "The displayed light reading changes clearly between covered and uncovered.",
+    "action": "light",
+    "group": "Built-in hardware",
+    "expected": "Light reading changes."
+  },
+  {
+    "id": "proximity",
+    "title": "Proximity sensor",
+    "instruction": "Move your hand toward and away from the top.",
+    "criterion": "The displayed proximity state changes near and far.",
+    "action": "proximity",
+    "group": "Built-in hardware",
+    "expected": "State switches between near and far."
+  },
+  {
+    "id": "dp-video",
+    "title": "External display modes",
+    "instruction": "Select resolution and Hz, then Apply.",
+    "criterion": "The external pattern is stable at the selected resolution and refresh rate, with correct geometry and visible borders.",
+    "action": "connection",
+    "group": "External display",
+    "expected": "Stable pattern, correct aspect ratio, visible borders.",
+    "external_display": true
+  },
+  {
+    "id": "dp-flip",
+    "title": "Reverse the USB-C plug",
+    "instruction": "Unplug, wait 5 s, flip the USB-C plug and reconnect.",
+    "criterion": "The monitor picture returns in the other orientation.",
+    "action": "connection",
+    "group": "External display",
+    "expected": "Picture returns. Keep the monitor powered.",
+    "external_display": true
+  },
+  {
+    "id": "external-touch",
+    "title": "USB touchscreen accessory",
+    "instruction": "Touch and swipe on a USB touchscreen.",
+    "criterion": "The USB touch event count increases. This tests the attached peripheral and USB input support; it does not test the phone touchscreen.",
+    "action": "external_touch",
+    "group": "USB peripherals",
+    "expected": "Accessory touch count increases.",
+    "external_display": true
+  },
+  {
+    "id": "dp-audio",
+    "title": "Monitor speakers",
+    "instruction": "Set monitor volume low. Run plays left, right, then both.",
+    "criterion": "All three parts play clearly through the monitor.",
+    "action": "dp_audio",
+    "group": "External display",
+    "expected": "All three tones play through the monitor.",
+    "external_display": true
+  },
+  {
+    "id": "phone-powered",
+    "title": "Monitor powered by phone",
+    "instruction": "Connect the monitor with only the phone cable.",
+    "criterion": "The monitor starts and shows a stable picture using phone power.",
+    "action": "connection",
+    "group": "External display",
+    "expected": "Stable picture using phone power.",
+    "external_display": true
+  },
+  {
+    "id": "usb3",
+    "title": "USB 3 accessory",
+    "instruction": "Connect a USB 3 drive and hub; detach the monitor.",
+    "criterion": "The drive appears at 5000 Mb/s or faster. Skip if you do not have this equipment.",
+    "action": "connection",
+    "group": "USB peripherals",
+    "expected": "Drive reports at least 5000 Mb/s."
+  },
+  {
+    "id": "gadget",
+    "title": "USB networking to computer",
+    "instruction": "Connect to a computer with a USB data cable.",
+    "criterion": "The computer detects the USB network. This does not test sustained transfer performance.",
+    "action": "connection",
+    "group": "USB peripherals",
+    "expected": "A USB network interface appears on the computer."
+  },
+  {
+    "id": "pd-charge",
+    "title": "USB-C charging",
+    "instruction": "Connect a USB-C PD charger. Skip above 90% battery.",
+    "criterion": "The displayed battery status says Charging.",
+    "action": "connection",
+    "group": "Charging",
+    "expected": "Battery reports Charging."
+  },
+  {
+    "id": "legacy-charge",
+    "title": "USB-A charging",
+    "instruction": "Connect a USB-A charger. Skip above 90% battery.",
+    "criterion": "The displayed battery status says Charging.",
+    "action": "connection",
+    "group": "Charging",
+    "expected": "Battery reports Charging."
+  },
+  {
+    "id": "bluetooth",
+    "title": "Bluetooth discovery",
+    "instruction": "Put an accessory in discovery / pairing mode.",
+    "criterion": "Your accessory appears in the discovery output.",
+    "action": "bluetooth",
+    "group": "Built-in hardware",
+    "expected": "Check its name or address below. No pairing."
+  },
+  {
+    "id": "wifi",
+    "title": "Wi-Fi scan",
+    "instruction": "Check nearby access points.",
+    "criterion": "Expected SSIDs appear. No connection changes.",
+    "action": "wifi",
+    "group": "Built-in hardware",
+    "expected": "Expected SSIDs appear. No connection changes."
+  },
+  {
+    "id": "nfc",
+    "title": "NFC tag detection",
+    "instruction": "Hold an NFC tag against the rear of the phone.",
+    "criterion": "A tag target is detected; Skip if you have no tag.",
+    "action": "nfc",
+    "group": "Built-in hardware",
+    "expected": "Tag detected. No tag contents read or written."
+  },
+  {
+    "id": "camera-main",
+    "title": "Main rear camera",
+    "instruction": "Aim, then Run to capture. OIS stays off. Photo saved.",
+    "criterion": "A recognisable preview appears without continuous buzzing.",
+    "action": "camera_main",
+    "group": "Built-in hardware",
+    "expected": "Recognisable image; no continuous buzzing."
+  },
+  {
+    "id": "camera-wide",
+    "title": "Ultrawide camera",
+    "instruction": "Aim, then Run to capture. Photo saved.",
+    "criterion": "The preview is recognisable and wider than the main camera view.",
+    "action": "camera_wide",
+    "group": "Built-in hardware",
+    "expected": "Wider field of view than the main camera."
+  },
+  {
+    "id": "camera-front",
+    "title": "Front camera",
+    "instruction": "Aim, then Run to capture. Photo saved.",
+    "criterion": "The preview is recognisable, without being too dark or too bright to see the scene.",
+    "action": "camera_front",
+    "group": "Built-in hardware",
+    "expected": "Recognisable image with usable exposure."
+  },
+  {
+    "id": "camera-tele",
+    "title": "Telephoto camera",
+    "instruction": "Aim at a bright, distant scene, then Run. Photo saved.",
+    "criterion": "The telephoto preview is recognisable without continuous buzzing.",
+    "action": "camera_tele",
+    "group": "Built-in hardware",
+    "expected": "Recognisable image; no continuous buzzing."
+  },
+  {
+    "id": "camera-mono",
+    "title": "Fifth camera",
+    "instruction": "Aim at a well-lit scene, then Run. Photo saved.",
+    "criterion": "A recognisable preview is produced.",
+    "action": "camera_mono",
+    "group": "Built-in hardware",
+    "expected": "Recognisable image from the fifth sensor."
+  }
+]
