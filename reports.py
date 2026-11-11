@@ -35,7 +35,7 @@ def collect_logs(directory, initial=False):
     commands = {
         'dmesg-start.log' if initial else 'dmesg.log': ['dmesg'],
         'logs/services.log': ['journalctl', '-b', '-u', 'iio-sensor-proxy.service',
-                              '--no-pager', '-o', 'short-monotonic'],
+                              '-u', 'sdx55-gnss.service', '--no-pager', '-o', 'short-monotonic'],
     }
     result = {'captured': now(), 'files': {}}
     launcher_log=Path('/run/nura-tests/launcher.log')

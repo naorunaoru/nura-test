@@ -34,7 +34,7 @@ nura-tests --discard-journal
 
 This prints the saved settings that were **not** restored, deletes the journal, and lets the next launch start. Restore those settings by hand or reboot.
 
-The target system needs working framebuffer/DRM, evdev and hardware drivers. Use a console session with any graphical compositor stopped: external-display tests need exclusive DRM master access. The installer adds Python, Pillow, evdev, Droid fonts, libssc, libdrm, NetworkManager CLI and BlueZ. Individual checks also use tools and services supplied by the port: `monitor-sensor` with `iio-sensor-proxy`, ALSA's `amixer`/`aplay`/`arecord`, libcamera's `cam`, and `neard` for NFC. A missing interface or tool is reported by the affected check.
+The target system needs working framebuffer/DRM, evdev and hardware drivers. Use a console session with any graphical compositor stopped: external-display tests need exclusive DRM master access. The installer adds Python, Pillow, evdev, Droid fonts, libssc, libdrm, NetworkManager CLI and BlueZ. Individual checks also use tools and services supplied by the port: `monitor-sensor` with `iio-sensor-proxy`, ALSA's `amixer`/`aplay`/`arecord`, libcamera's `cam`, `neard` for NFC, and the modem setup's `sdx55-gnss` service for GNSS. A missing interface or tool is reported by the affected check.
 
 Close a running foreground instance before updating, or use `nura-tests --stop` from another shell. Then, from the cloned directory:
 
@@ -48,7 +48,7 @@ The installer preserves saved state and reports, and refuses to replace files wh
 
 ## Using the suite
 
-Tap **Start** or **Resume** to walk through the checks. **Cameras**, **IMU**, **Compass** and **Display** jump directly to those pages; earlier unanswered checks remain pending. After all checks have an answer, the app shows a summary. **New run** starts another run; reopening a completed run shows its existing summary. Starting on a different kernel archives an unfinished run and starts a fresh one.
+Tap **Start** or **Resume** to walk through the checks. **Cameras**, **GNSS**, **IMU**, **Compass** and **Display** jump directly to those pages; earlier unanswered checks remain pending. After all checks have an answer, the app shows a summary. **New run** starts another run; reopening a completed run shows its existing summary. Starting on a different kernel archives an unfinished run and starts a fresh one.
 
 | Control | Effect |
 |---|---|
@@ -66,7 +66,7 @@ Controls sit at the bottom, with the top 192 physical pixels reserved for the ca
 
 ## Checks and expected results
 
-There are 32 checks in [steps.json](steps.json). Each page states its criterion.
+There are 33 checks in [steps.json](steps.json). Each page states its criterion.
 
 | Area | What to do and expect |
 |---|---|
@@ -83,9 +83,10 @@ There are 32 checks in [steps.json](steps.json). Each page states its criterion.
 | Bluetooth | Put an accessory in discovery/pairing mode. The list shows observed names, addresses and RSSI; the app does not pair. If it enables Bluetooth, it restores the previous off state on exit. |
 | Wi-Fi | Expect nearby SSIDs, BSSIDs, channels, signal percentages and security. Enable Wi-Fi before testing; scanning does not change connections. **Next page** cycles radio lists longer than six rows. |
 | NFC | Present a tag and expect detection. The app does not read or write tag contents. |
+| GNSS | **GNSS** opens the receiver page directly. Under open sky, expect a green **FIX** banner and a position, altitude and UTC time that match where you are. |
 | Cameras | **Cameras** opens the main sensor directly. Each camera page starts its own live preview; use a bright, distant target for telephoto. |
 
-Accessory checks need the corresponding monitor, USB devices, chargers or NFC tag; use Skip when you do not have them. This suite does not cover every subsystem: for example, cellular calls/data, GNSS and video codecs have no checks here.
+Accessory checks need the corresponding monitor, USB devices, chargers or NFC tag; use Skip when you do not have them. This suite does not cover every subsystem: for example, cellular calls/data and video codecs have no checks here.
 
 ## Camera tests
 
@@ -106,6 +107,21 @@ Full-sensor RAW results on kernel `7.2.0-nura-chgfix1` (other kernels may differ
 | Colour-filter · GC5035 | 2592×1944 | Captured. |
 
 On the main camera, 1280×960 RGB also succeeded. The advertised 3992×3000 RGB mode configured, but the driver could not allocate its buffers.
+
+## GNSS receiver
+
+The page follows the NMEA sentences that the port's `sdx55-gnss` service writes to `/dev/gnss-sdx55` once a second. It needs that service from the port's [modem setup](https://github.com/darknagel/oneplus-instantnoodlep-nura-unofficial/tree/main/modem) and does not start, stop or configure the receiver. The banner gives the state:
+
+| Banner | Meaning |
+|---|---|
+| **3D FIX** / **2D FIX** (green) | The receiver reports a current position, with the number of satellites used and HDOP. |
+| **NO FIX** (amber) | Sentences arrive, without a position. The banner shows how long the search has run, or how long ago the fix was lost, and the strongest signal. |
+| **NO DATA** (red) | Nothing has arrived for more than five seconds. |
+| **RECEIVER ERROR** (red) | The service is not running or its stream closed; the message says which. **Retry** after fixing it. |
+
+Position is in decimal degrees, altitude is above mean sea level, and time is the receiver's UTC. Without a current fix the last known values stay on screen, dimmed. The table lists satellites strongest first with elevation and signal strength in dB-Hz: green bars are used in the fix, grey-blue ones are only tracked. `G` is GPS and `R` is GLONASS, the two systems the service requests satellite lists for. Satellites of other systems that the fix uses, such as BeiDou (`C`), are listed as used with **no signal data**.
+
+A first fix can take a few minutes outdoors and may never arrive indoors. Close `gpsd` or any other program reading `/dev/gnss-sdx55` first: two readers each get fragments, which shows as a growing **rejected** count.
 
 ## External display modes
 
@@ -135,8 +151,9 @@ The run directory is shown in the app and saved in `/var/lib/nura-tests/current.
 | `photos/*.png`, `photos/*.bin` | RGB stills, preview snapshots, control-verdict frames and packed RAW stills. Still captures have a JSON sidecar with dimensions, format and frame metadata. |
 | `logs/camera_*` | Per-sensor capabilities, request and verdict events, raw stream output and capture failures. |
 | `dmesg-start.log`, `dmesg.log` | Kernel log at run start and its latest collected copy. |
-| `logs/app.log`, `logs/services.log`, `logs/*.log` | Foreground launcher/app output, sensor-service logs and raw action output. |
+| `logs/app.log`, `logs/services.log`, `logs/*.log` | Foreground launcher/app output, sensor and GNSS service logs and raw action output. |
 | `logs/imu-samples-*.jsonl`, `logs/compass-samples-*.jsonl` | Sensor samples for the live views. |
+| `logs/gnss-nmea-*.log` | Raw NMEA received while the GNSS page was open. |
 | `logs/external-modes-*.jsonl` | Connector modes, accepted/rejected mode changes and errors. Operator verdicts remain in `results.json`. |
 | `logs/external-pattern-*.svg` | Vector card for each accepted mode. |
 | `logs/touchscreen-*.jsonl` | Internal touch contacts recorded throughout app use, including controls and other test pages. |
@@ -148,7 +165,7 @@ The run directory is shown in the app and saved in `/var/lib/nura-tests/current.
 scp -r root@PHONE_IP:/tmp/mqa/YYYY-MM-DD/NNN ./nura-test-run
 ```
 
-Current state and completed JSON reports also live under `/var/lib/nura-tests/`, but they do not preserve photos or other artifacts from `/tmp`. Reopening resumes saved answers; it cannot recover deleted artifacts. Reports can include camera images, nearby network/device identifiers and system logs, so choose the relevant files when sharing a bug report.
+Current state and completed JSON reports also live under `/var/lib/nura-tests/`, but they do not preserve photos or other artifacts from `/tmp`. Reopening resumes saved answers; it cannot recover deleted artifacts. Reports can include camera images, your position from the GNSS check, nearby network/device identifiers and system logs, so choose the relevant files when sharing a bug report.
 
 Touch traces have no point-count limit. Each JSONL starts with device name, raw axis ranges, screen dimensions, top-left origin and clock metadata. Contact records include sequence number, event/elapsed time, slot, tracking ID, down/move/up phase, raw/normalized/screen coordinates, page/test and the control under the contact. Dropped input frames have explicit records. Each answer references its trace file and sequence interval; reopening the app creates another trace without overwriting earlier ones.
 
@@ -164,7 +181,7 @@ tail -n 100 /run/nura-tests/launcher.log
 
 The app requires the internal framebuffer in portrait 1440×3168 with the expected 32-bit pixel layout. For an external-display permission or busy error, check that a graphical compositor is not holding DRM master access. A missing sensor stream, Wi-Fi-off message, unavailable camera or other action error should be investigated in that action's log; **Retry** repeats the check after the cause is fixed.
 
-The software tests exercise state persistence, worker cleanup, strict camera captures and OIS restoration, radio parsing, sensor transforms, touch evidence, framebuffer updates and DRM selection/restoration with hardware mocked. Lifecycle tests launch synthetic processes to check signals, crashes, inherited locks and orphan cleanup. Run them on Linux or macOS without a phone or root access; macOS skips the Linux process-supervision tests:
+The software tests exercise state persistence, worker cleanup, strict camera captures and OIS restoration, radio and NMEA parsing, sensor transforms, touch evidence, framebuffer updates and DRM selection/restoration with hardware mocked. Lifecycle tests launch synthetic processes to check signals, crashes, inherited locks and orphan cleanup. Run them on Linux or macOS without a phone or root access; macOS skips the Linux process-supervision tests:
 
 ```sh
 python3 -m venv .venv
@@ -175,4 +192,4 @@ python test_app.py
 
 GitHub Actions runs the same suite. Passing it does not establish hardware functionality: new driver, timing or device-profile changes still need on-device checks.
 
-`launcher.py` owns the foreground lifecycle and lock; `app.py` draws the UI, `actions.py` runs hardware workers, `core.py` stores answers, and `reports.py` manages artifacts. Running `python3 app.py` also goes through the launcher. Camera capture and controls live in `camera_live.py` and `camera_view.py`. Sensor views live in `sensor_live.py` / `sensor_views.py`, radio parsing in `radio_scan.py`, and touch capture in `touch_trace.py`. External output uses `drm_display.py`, `external_display.py` and `display_pattern.py`. Add or revise the test catalogue in `steps.json`; porting to another phone also requires changing the device-specific interfaces in the code and installer.
+`launcher.py` owns the foreground lifecycle and lock; `app.py` draws the UI, `actions.py` runs hardware workers, `core.py` stores answers, and `reports.py` manages artifacts. Running `python3 app.py` also goes through the launcher. Camera capture and controls live in `camera_live.py` and `camera_view.py`. Sensor views live in `sensor_live.py` / `sensor_views.py`, radio parsing in `radio_scan.py`, the GNSS page in `gnss_live.py` / `gnss_view.py`, and touch capture in `touch_trace.py`. External output uses `drm_display.py`, `external_display.py` and `display_pattern.py`. Add or revise the test catalogue in `steps.json`; porting to another phone also requires changing the device-specific interfaces in the code and installer.

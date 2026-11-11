@@ -6,6 +6,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageChops
 from core import Session, atomic_json, now
 import actions
 import camera_view
+import gnss_view
 from sensor_views import draw_imu, draw_compass, SensorAnimation
 from reports import ensure_run, collect_logs
 
@@ -132,7 +133,7 @@ class Renderer:
 
     def buttons(self,app):
         if app.mode=='welcome':
-            return [('jump_camera','Cameras',(16,794,464,860),'#254f68',True),('jump_imu','IMU',(16,882,156,950),'#254f68',True),('jump_compass','Compass',(168,882,308,950),'#254f68',True),('jump_display','Display',(320,882,464,950),'#254f68',True),
+            return [('jump_camera','Cameras',(16,794,234,860),'#254f68',True),('jump_gnss','GNSS',(246,794,464,860),'#254f68',True),('jump_imu','IMU',(16,882,156,950),'#254f68',True),('jump_compass','Compass',(168,882,308,950),'#254f68',True),('jump_display','Display',(320,882,464,950),'#254f68',True),
                     ('exit','Close',(16,968,137,1040),'#263449',True),('start','Resume' if app.session.data['answers'] else 'Start',(148,968,464,1040),'#275f4c',True)]
         if app.mode=='summary':
             complete=app.session.data['completed']
@@ -223,6 +224,9 @@ class Renderer:
                 view(self,draw,app.sensor_animation.frame(app.sensor_state,app.worker is not None),app.worker is not None)
             elif action.startswith('camera_'):
                 camera_view.draw(self,image,draw,app,RUN)
+            elif action=='gnss':
+                failed=bool(app.result) and not app.result.get('ok')
+                gnss_view.draw(self,draw,app.scan_state,app.worker is not None,'failed' if failed else '')
             else:
                 y=self.text(draw,step['instruction'],(24,y+18),21,max_lines=3)
                 y=self.text(draw,step.get('expected',step['criterion']),(24,y+12),18,MUTED,max_lines=3)
@@ -352,8 +356,8 @@ class App:
             else:self.enter_test()
             return
         if key=='pause':self.mode='welcome';return
-        if key in ('jump_imu','jump_compass','jump_display','jump_camera'):
-            target={'jump_camera':'camera-main','jump_display':'dp-video','jump_imu':'imu','jump_compass':'compass'}[key]
+        if key.startswith('jump_'):
+            target={'jump_camera':'camera-main','jump_display':'dp-video','jump_imu':'imu','jump_compass':'compass','jump_gnss':'gnss'}[key]
             self.session.data['index']=next(i for i,s in enumerate(STEPS) if s['id']==target)
             self.session.save();self.enter_test();return
         if key=='review':self.session.data['index']=0;self.session.save();self.enter_test();return

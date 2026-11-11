@@ -194,6 +194,7 @@ class SensorTests(unittest.TestCase):
 from test_camera import CameraTests
 from test_usability import UsabilityTests, RadioTests
 from test_display import DisplayTests
+from test_gnss import ReceiverTests, WorkerTests, CardTests
 from test_launcher import LockTests, LauncherTests
 
 if __name__=='__main__':unittest.main()

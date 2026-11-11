@@ -9,7 +9,7 @@ BACKLIGHT=Path('/sys/class/backlight/ae94000.dsi.0/brightness')
 ARTIFACTS=None
 ACTION_LOG=None
 PASSIVE_ACTIONS={'pattern','touch','imu','compass','accelerometer','tilt','light',
-                 'proximity','connection','external_touch','bluetooth','wifi','nfc',
+                 'proximity','connection','external_touch','bluetooth','wifi','nfc','gnss',
                  'camera_main','camera_wide','camera_front','camera_tele','camera_mono'}
 
 def stopped():return (RUN/'stop').exists()
@@ -250,6 +250,17 @@ def nfc():
     finally:
         recover()
 
+def gnss():
+    from gnss_live import capture,DEVICE
+    # A stopped service leaves its link behind, and a login shell can then be
+    # given the same pty: reading that would swallow what the operator types.
+    if command(['systemctl','is-active','sdx55-gnss.service'],check=False).strip()!='active':
+        raise RuntimeError("sdx55-gnss.service is not running. It comes with the port's modem setup.")
+    path=numbered_file(ARTIFACTS/'logs','gnss-nmea','.log')
+    result=capture(RUN,path,DEVICE)
+    result['nmea_log']=str(path.relative_to(ARTIFACTS))
+    return result
+
 def camera(kind):
     from camera_live import Camera
     return Camera(kind,RUN,ARTIFACTS).loop()
@@ -356,6 +367,7 @@ def perform(action):
     if action=='bluetooth':return bluetooth_scan()
     if action=='wifi':return wifi_scan()
     if action=='nfc':return nfc()
+    if action=='gnss':return gnss()
     if action.startswith('camera_'):return camera(action)
     raise ValueError('Unknown test action')
 
