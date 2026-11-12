@@ -25,7 +25,7 @@ try:
     with Instance():
         target=Path('/opt/nura-tests');target.mkdir(mode=0o755,parents=True,exist_ok=True)
         for name in ('app.py actions.py launcher.py core.py reports.py sensor_live.py sensor_views.py '
-                     'camera_live.py camera_view.py radio_scan.py touch_trace.py drm_display.py external_display.py display_pattern.py steps.json').split():
+                     'camera_live.py camera_view.py gnss_live.py gnss_view.py radio_scan.py touch_trace.py drm_display.py external_display.py display_pattern.py steps.json').split():
             shutil.copyfile(name,target/name);(target/name).chmod(0o644)
         launcher=Path('/usr/local/bin/nura-tests');launcher.parent.mkdir(parents=True,exist_ok=True)
         launcher.write_text('#!/bin/sh\nexec python3 /opt/nura-tests/launcher.py "$@"\n')

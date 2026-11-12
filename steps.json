@@ -248,6 +248,15 @@
     "expected": "Tag detected. No tag contents read or written."
   },
   {
+    "id": "gnss",
+    "title": "GNSS receiver",
+    "instruction": "Go outdoors or to a window with open sky. A first fix can take a few minutes.",
+    "criterion": "The receiver reports a fix whose position, altitude and UTC time match your location and a reference clock.",
+    "action": "gnss",
+    "group": "Built-in hardware",
+    "expected": "Fix with plausible position, altitude and time."
+  },
+  {
     "id": "camera-main",
     "title": "Main rear camera",
     "instruction": "Use Preview, Capture and Controls.",
