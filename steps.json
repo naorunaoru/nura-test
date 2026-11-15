@@ -45,22 +45,13 @@
     "expected": "One brief pulse."
   },
   {
-    "id": "torch-0",
-    "title": "First torch LED",
-    "instruction": "Point the rear LEDs away from your eyes. Run pulses LED 1.",
-    "criterion": "One rear LED lights briefly and turns fully off.",
-    "action": "torch0",
+    "id": "torch",
+    "title": "Torch LEDs",
+    "instruction": "Point the rear LEDs away from your eyes. Run pulses them.",
+    "criterion": "Both rear LEDs light briefly and turn fully off.",
+    "action": "torch",
     "group": "Built-in hardware",
-    "expected": "LED lights, then turns fully off."
-  },
-  {
-    "id": "torch-1",
-    "title": "Second torch LED",
-    "instruction": "Point the rear LEDs away from your eyes. Run pulses LED 2.",
-    "criterion": "The other rear LED lights briefly and turns fully off.",
-    "action": "torch1",
-    "group": "Built-in hardware",
-    "expected": "LED lights, then turns fully off."
+    "expected": "LEDs light, then turn fully off."
   },
   {
     "id": "speaker-left",

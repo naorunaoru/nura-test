@@ -66,13 +66,13 @@ Controls sit at the bottom, with the top 192 physical pixels reserved for the ca
 
 ## Checks and expected results
 
-There are 33 checks in [steps.json](steps.json). Each page states its criterion.
+There are 32 checks in [steps.json](steps.json). Each page states its criterion.
 
 | Area | What to do and expect |
 |---|---|
 | Internal display and touch | Inspect colour blocks and text for corruption or flicker. Sweep edges and corners; yellow dots should follow contacts and stop when fingers lift. |
 | Brightness and display power | Run cycles three brightness levels, or blanks the display for two seconds. The original brightness/picture should return. |
-| Haptics and LEDs | Expect one brief vibration or a short pulse from each rear LED. |
+| Haptics and LEDs | Expect one brief vibration or a short pulse from the rear LEDs. The port drives both LEDs as one; a kernel that still exposes them separately gets one pulse after the other. |
 | Phone audio | Check earpiece and bottom-speaker tones. The microphone check records three seconds, plays them back, then deletes the recording. |
 | IMU and tilt | The bubble moves toward the raised edge and centers when level. Turn the phone screen-up, upright, then screen-down: labels should say face-up, vertical, then face-down. |
 | Compass | Keep both phones flat with their top edges aligned; compare against a reference set to **magnetic north** in several directions. Animation buffers about 220 ms to interpolate 5 Hz readings; saved samples are unfiltered. |

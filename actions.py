@@ -120,6 +120,16 @@ def mixer_set(name,value,saved):
         atomic_json(RUN/'mixer-restore.json',saved)
     command(['amixer','-c','0','cset','name='+name,str(value)])
 
+def torch_leds(base=Path('/sys/class/leds')):
+    """Brightness files of the rear LEDs.
+
+    The port drives both LEDs as one, `white:flash`. Kernels before that
+    exposed one LED per channel, `white:flash-0` and `white:flash-1`.
+    """
+    combined=base/'white:flash'/'brightness'
+    if combined.exists():return [combined]
+    return sorted(base.glob('white:flash-*/brightness'))
+
 def recover():
     """Finish restoration if a worker was interrupted or killed."""
     from camera_live import recover_ois
@@ -130,6 +140,7 @@ def recover():
     if p.exists():
         values=json.loads(p.read_text())
         allowed={str(BACKLIGHT),'/sys/class/graphics/fb0/blank',
+                 '/sys/class/leds/white:flash/brightness',
                  '/sys/class/leds/white:flash-0/brightness',
                  '/sys/class/leds/white:flash-1/brightness'}
         for path,value in values.items():
@@ -329,13 +340,16 @@ def perform(action):
         finally:recover()
         return {'requested_off_seconds':2,'waited_seconds':round(elapsed,3),'restored':read(p)=='0'}
     if action=='haptic':return haptic()
-    if action in ('torch0','torch1'):
-        p=Path('/sys/class/leds/white:flash-'+action[-1]+'/brightness')
-        if read(p)!='0':raise RuntimeError('LED is already in use; turn it off first.')
-        set_restore(p,'0')
-        try:p.write_text('10');time.sleep(.25)
-        finally:recover()
-        return {'led':action[-1],'level':10,'duration_ms':250,'off':read(p)=='0'}
+    if action=='torch':
+        leds=torch_leds()
+        if not leds:raise RuntimeError('No torch LED found.')
+        if any(read(p)!='0' for p in leds):raise RuntimeError('LED is already in use; turn it off first.')
+        for p in leds:
+            set_restore(p,'0')
+            try:p.write_text('10');time.sleep(.25)
+            finally:recover()
+        return {'leds':[p.parent.name for p in leds],'level':10,'duration_ms':250,
+                'off':all(read(p)=='0' for p in leds)}
     if action in ('speaker_left','speaker_right','dp_audio','microphone'):return audio(action)
     if action in ('imu','compass'):
         from sensor_live import capture

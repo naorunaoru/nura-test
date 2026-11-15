@@ -64,7 +64,7 @@ class UsabilityTests(unittest.TestCase):
         with patch('app.subprocess.Popen') as spawn:
             self.ui.enter_test();self.assertEqual(spawn.call_args.args[0][2],'proximity')
             self.ui.worker=None
-        self.select('torch0')
+        self.select('torch')
         with patch('app.subprocess.Popen') as spawn:
             self.ui.enter_test();spawn.assert_not_called()
         enabled={b[0]:b[4] for b in self.ui.renderer.buttons(self.ui)}

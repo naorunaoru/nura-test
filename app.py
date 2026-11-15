@@ -37,7 +37,7 @@ def restore_console():
             print('Console restoration:',error,flush=True);ok=False
     except (OSError,ValueError,KeyError) as error:
         print('Console restoration:',error,flush=True);ok=False
-    for p in Path('/sys/class/leds').glob('white:flash-*/brightness'):
+    for p in Path('/sys/class/leds').glob('white:flash*/brightness'):
         try:p.write_text('0')
         except OSError:pass
     try:Path('/sys/class/graphics/fb0/blank').write_text('0')
